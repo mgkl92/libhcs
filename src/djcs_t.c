@@ -193,16 +193,18 @@ void djcs_t_generate_key_pair(djcs_t_public_key *pk, djcs_t_private_key *vk, hcs
 
 void djcs_t_encrypt(djcs_t_public_key *pk, hcs_random *hr, mpz_t rop, mpz_t plain1)
 {
-    mpz_t t1;
-    mpz_init(t1);
+    mpz_t t1, t2;
+    mpz_inits(t1, t2, NULL);
 
     mpz_random_in_mult_group(t1, hr->rstate, pk->n[pk->s-1]);
-    mpz_powm(rop, t1, pk->n[pk->s-1], pk->n[pk->s]);
-    mpz_powm(t1, pk->g, plain1, pk->n[pk->s]);
-    mpz_mul(rop, rop, t1);
+    mpz_powm(t1, t1, pk->n[pk->s-1], pk->n[pk->s]);
+    // encryption acceleration: g^plain1 (mod n^2) = n*plain1 + 1
+    mpz_mul(t2, pk->n[pk->s-1], plain1);
+    mpz_add_ui(t2, t2, 1);
+    mpz_mul(rop, t1, t2);
     mpz_mod(rop, rop, pk->n[pk->s]);
 
-    mpz_clear(t1);
+    mpz_clears(t1, t2, NULL);
 }
 
 void djcs_t_reencrypt(djcs_t_public_key *pk, hcs_random *hr, mpz_t rop, mpz_t op)
@@ -222,10 +224,10 @@ void djcs_t_ep_add(djcs_t_public_key *pk, mpz_t rop, mpz_t cipher1, mpz_t plain1
 {
     mpz_t t1;
     mpz_init(t1);
-
-    mpz_set(t1, cipher1);
-    mpz_powm(rop, pk->g, plain1, pk->n[pk->s]);
-    mpz_mul(rop, rop, t1);
+    // g^plain1 (mod n^2) = n*plain1 + 1
+    mpz_mul(t1, pk->n[pk->s-1], plain1);
+    mpz_add_ui(t1, t1, 1);
+    mpz_mul(rop, cipher1, t1);
     mpz_mod(rop, rop, pk->n[pk->s]);
 
     mpz_clear(t1);
