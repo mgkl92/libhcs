@@ -6,15 +6,15 @@
 
 hcs_shares* hcs_init_shares(unsigned long size)
 {
-    hcs_shares *hs = malloc(sizeof(hcs_shares));
+    hcs_shares *hs = calloc(1, sizeof(hcs_shares));
     if (!hs)
-        goto failure;
+        return NULL;
 
     hs->shares = malloc(sizeof(mpz_t) * size);
     if (!hs->shares)
         goto failure;
 
-    hs->flag = malloc(sizeof(int) * size);
+    hs->flag = calloc(size, sizeof(int));
     if (!hs->flag)
         goto failure;
 

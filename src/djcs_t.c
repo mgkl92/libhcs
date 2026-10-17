@@ -24,6 +24,7 @@
 #include "../include/libhcs/hcs_random.h"
 #include "../include/libhcs/djcs_t.h"
 #include "com/util.h"
+#include "com/omp.h"
 
 static void dlog_s(djcs_t_public_key *pk, mpz_t rop, mpz_t op)
 {
@@ -196,11 +197,31 @@ void djcs_t_encrypt(djcs_t_public_key *pk, hcs_random *hr, mpz_t rop, mpz_t plai
     mpz_t t1, t2;
     mpz_inits(t1, t2, NULL);
 
-    mpz_random_in_mult_group(t1, hr->rstate, pk->n[pk->s-1]);
-    mpz_powm(t1, t1, pk->n[pk->s-1], pk->n[pk->s]);
-    // encryption acceleration: g^plain1 (mod n^2) = n*plain1 + 1
-    mpz_mul(t2, pk->n[pk->s-1], plain1);
-    mpz_add_ui(t2, t2, 1);
+    /* The plaintext part and the randomiser part are independent, so compute
+     * them concurrently. */
+    #pragma omp parallel sections
+    {
+        #pragma omp section
+        {
+            mpz_random_in_mult_group(t1, hr->rstate, pk->n[pk->s-1]);
+            mpz_powm(t1, t1, pk->n[pk->s-1], pk->n[pk->s]);
+        }
+        #pragma omp section
+        {
+            /* For s == 1 the ciphertext modulus is n^2 and g = n + 1, so
+             * g^plain1 = (n + 1)^plain1 = 1 + plain1 * n (mod n^2). For s > 1
+             * the modulus is n^(2^s) and the higher order binomial terms
+             * survive, so the shortcut no longer holds and we fall back to a
+             * full exponentiation. */
+            if (pk->s == 1) {
+                mpz_mul(t2, pk->n[0], plain1);
+                mpz_add_ui(t2, t2, 1);
+            } else {
+                mpz_powm(t2, pk->g, plain1, pk->n[pk->s]);
+            }
+        }
+    }
+
     mpz_mul(rop, t1, t2);
     mpz_mod(rop, rop, pk->n[pk->s]);
 
@@ -224,9 +245,15 @@ void djcs_t_ep_add(djcs_t_public_key *pk, mpz_t rop, mpz_t cipher1, mpz_t plain1
 {
     mpz_t t1;
     mpz_init(t1);
-    // g^plain1 (mod n^2) = n*plain1 + 1
-    mpz_mul(t1, pk->n[pk->s-1], plain1);
-    mpz_add_ui(t1, t1, 1);
+
+    /* See djcs_t_encrypt: g^plain1 is only 1 + plain1 * n modulo n^2, which is
+     * the s == 1 case. */
+    if (pk->s == 1) {
+        mpz_mul(t1, pk->n[0], plain1);
+        mpz_add_ui(t1, t1, 1);
+    } else {
+        mpz_powm(t1, pk->g, plain1, pk->n[pk->s]);
+    }
     mpz_mul(rop, cipher1, t1);
     mpz_mod(rop, rop, pk->n[pk->s]);
 

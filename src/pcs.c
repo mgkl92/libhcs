@@ -349,16 +349,26 @@ int pcs_import_private_key(pcs_private_key *vk, const char *json)
     mpz_add_ui(vk->q, vk->q, 1);
     mpz_pow_ui(vk->n2, vk->n, 2);
     mpz_invert(vk->mu, vk->lambda, vk->n);
+
+    /* g = n + 1 is the base for both hp and hq. The previous code reused
+     * vk->hq as scratch for g and then overwrote it with q - 1, so hq ended up
+     * being computed from the wrong base and an imported key could not
+     * decrypt. Keep g in its own temporary. */
+    mpz_t g;
+    mpz_init(g);
+    mpz_add_ui(g, vk->n, 1);
+
     mpz_sub_ui(vk->hp, vk->p, 1);
-    mpz_add_ui(vk->hq, vk->n, 1);
-    mpz_powm(vk->hp, vk->hq, vk->hp, vk->p2);
+    mpz_powm(vk->hp, g, vk->hp, vk->p2);
     mpz_sub_ui(vk->hp, vk->hp, 1);
     mpz_tdiv_q(vk->hp, vk->hp, vk->p);
     mpz_invert(vk->hp, vk->hp, vk->p);
     mpz_sub_ui(vk->hq, vk->q, 1);
-    mpz_powm(vk->hq, vk->hq, vk->hq, vk->q2);
+    mpz_powm(vk->hq, g, vk->hq, vk->q2);
     mpz_sub_ui(vk->hq, vk->hq, 1);
     mpz_tdiv_q(vk->hq, vk->hq, vk->q);
     mpz_invert(vk->hq, vk->hq, vk->q);
+
+    mpz_clear(g);
     return 0;
 }

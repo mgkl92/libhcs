@@ -517,11 +517,11 @@ int pcs_t_share_combine(pcs_t_public_key *pk, mpz_t rop, hcs_shares *hs)
         if (hs->flag[i] == 0)
             continue;
 
-        /* Compute lagrange coefficients */
+        /* Compute lagrange coefficients over the participating set S. */
         mpz_set(t1, pk->delta);
         for (unsigned long j = 0; j < pk->l; ++j) {
-            if ((j == i) || hs->flag[i] == 0)
-                continue; /* i' in S\i and non-zero */
+            if ((j == i) || hs->flag[j] == 0)
+                continue; /* j in S\i, j != i */
 
             long v = (long)j - (long)i;
             mpz_tdiv_q_ui(t1, t1, (v < 0 ? v*-1 : v));
